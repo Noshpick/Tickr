@@ -74,9 +74,31 @@ React 19, TypeScript (strict), Vite, Vitest, Testing Library, GitLab CI.
 
 `.gitlab-ci.yml` runs type checking and tests, then builds the app and stores `dist/` as an artifact.
 
+## Performance
+
+Measured on a production build (`npm run build && npm run preview`), BTCUSDT, 30 seconds after warm-up, in the same Chrome session. React commits are counted per component with a `useEffect` counter (`src/shared/perf.ts`), so StrictMode double-rendering does not skew the numbers.
+
+`?naive=1` switches off the two main optimizations to get a baseline: events are applied one by one instead of one batch per animation frame, and every component subscribes to the whole state instead of a selector.
+
+| Metric (30 s) | Naive | Optimized |
+| --- | --- | --- |
+| WebSocket messages | 3,834 | 3,925 |
+| React commits, total | 19,170 | 1,007 |
+| Commits per message | 5.00 | 0.26 |
+| Ticker | 3,834 | 137 |
+| OrderBook | 3,834 | 292 |
+| TradeList | 3,834 | 196 |
+| CandleChart | 3,834 | 15 |
+| Long tasks (>50 ms) | 0 | 0 |
+
+That is roughly 19x fewer React commits for the same stream. Long tasks were zero in both modes on this machine, so the difference shows up in wasted work rather than in visible jank; a slower device would be the place to look for it. This is a single 30-second run per mode, not a statistical benchmark.
+
+To reproduce: open the preview, then run `__perf.reset()` in the console, wait, and run `__perf.snapshot()`. Add `?naive=1` to the URL for the baseline.
+
 ## Roadmap
 
-- [ ] Performance measurements (React Profiler, Lighthouse) with before/after numbers
+- [x] Render and long-task measurements with before/after numbers
+- [ ] Lighthouse report for the production build
 - [ ] Node.js proxy for the WebSocket with a shared cache between clients
 - [ ] Virtualized list and a Web Worker for heavy calculations
 - [ ] End-to-end tests with Playwright

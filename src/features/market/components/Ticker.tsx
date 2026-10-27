@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { useStore } from '../../../shared/createStore';
+import { useRenderCount } from '../../../shared/perf';
 import { formatCompact, formatPercent, formatPrice } from '../format';
 import type { SymbolInfo } from '../symbols';
-import { useFeed } from '../useMarketFeed';
+import { useMarketSelector } from '../useMarketFeed';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -14,10 +14,10 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export function Ticker({ symbol }: { symbol: SymbolInfo }) {
-  const { market } = useFeed();
-  const price = useStore(market, (s) => s.lastPrice);
-  const direction = useStore(market, (s) => s.direction);
-  const stats = useStore(market, (s) => s.stats);
+  useRenderCount('Ticker');
+  const price = useMarketSelector((s) => s.lastPrice);
+  const direction = useMarketSelector((s) => s.direction);
+  const stats = useMarketSelector((s) => s.stats);
 
   useEffect(() => {
     document.title = price === null ? 'Tickr' : `${formatPrice(price)} · ${symbol.base}/${symbol.quote}`;

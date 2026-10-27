@@ -1,11 +1,11 @@
-import { useStore } from '../../../shared/createStore';
+import { useRenderCount } from '../../../shared/perf';
 import { formatPrice, formatQty, formatTime } from '../format';
 import type { SymbolInfo } from '../symbols';
-import { useFeed } from '../useMarketFeed';
+import { useMarketSelector } from '../useMarketFeed';
 
 export function TradeList({ symbol }: { symbol: SymbolInfo }) {
-  const { market } = useFeed();
-  const trades = useStore(market, (s) => s.trades);
+  useRenderCount('TradeList');
+  const trades = useMarketSelector((s) => s.trades);
 
   return (
     <section className="panel">

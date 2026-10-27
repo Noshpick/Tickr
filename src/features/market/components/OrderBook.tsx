@@ -1,9 +1,9 @@
 import { memo } from 'react';
-import { useStore } from '../../../shared/createStore';
+import { useRenderCount } from '../../../shared/perf';
 import { formatPrice, formatQty } from '../format';
 import type { SymbolInfo } from '../symbols';
 import type { BookLevel } from '../types';
-import { useFeed } from '../useMarketFeed';
+import { useMarketSelector } from '../useMarketFeed';
 
 const DEPTH = 10;
 
@@ -39,11 +39,11 @@ const Side = memo(function Side({ levels, side, maxQty }: SideProps) {
 });
 
 function Spread() {
-  const { market } = useFeed();
-  const price = useStore(market, (s) => s.lastPrice);
-  const direction = useStore(market, (s) => s.direction);
-  const bestBid = useStore(market, (s) => s.bids[0]?.price);
-  const bestAsk = useStore(market, (s) => s.asks[0]?.price);
+  useRenderCount('Spread');
+  const price = useMarketSelector((s) => s.lastPrice);
+  const direction = useMarketSelector((s) => s.direction);
+  const bestBid = useMarketSelector((s) => s.bids[0]?.price);
+  const bestAsk = useMarketSelector((s) => s.asks[0]?.price);
   const spread = bestBid !== undefined && bestAsk !== undefined ? bestAsk - bestBid : null;
 
   return (
@@ -55,9 +55,9 @@ function Spread() {
 }
 
 export function OrderBook({ symbol }: { symbol: SymbolInfo }) {
-  const { market } = useFeed();
-  const bids = useStore(market, (s) => s.bids);
-  const asks = useStore(market, (s) => s.asks);
+  useRenderCount('OrderBook');
+  const bids = useMarketSelector((s) => s.bids);
+  const asks = useMarketSelector((s) => s.asks);
 
   const bidsView = bids.slice(0, DEPTH);
 

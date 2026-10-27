@@ -1,5 +1,6 @@
 import { createStore, type Store } from '../../shared/createStore';
 import { createReconnectingSocket, type SocketStatus } from '../../shared/reconnectingSocket';
+import { countMessage, NAIVE } from '../../shared/perf';
 import { parseMessage } from './parse';
 import { initialMarketState, reduceEvents, type MarketState } from './reducer';
 import type { Candle, MarketEvent } from './types';
@@ -56,6 +57,11 @@ export function createMarketFeed(symbol: string): MarketFeed {
     onMessage: (raw) => {
       const event = parseMessage(raw);
       if (!event) return;
+      countMessage();
+      if (NAIVE) {
+        market.setState((prev) => reduceEvents(prev, [event]));
+        return;
+      }
       pending.push(event);
       if (!frame) frame = requestAnimationFrame(flush);
     },
@@ -64,9 +70,7 @@ export function createMarketFeed(symbol: string): MarketFeed {
   const abort = new AbortController();
   fetchHistory(symbol, abort.signal)
     .then((candles) => market.setState((prev) => reduceEvents(prev, [{ type: 'history', candles }])))
-    .catch(() => {
-
-    });
+    .catch(() => undefined);
 
   return {
     market,

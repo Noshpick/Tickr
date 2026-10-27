@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type PointerEvent } from 'react';
-import { useStore } from '../../../shared/createStore';
+import { useRenderCount } from '../../../shared/perf';
 import { getPriceRange, getTicks, priceToY } from '../chartMath';
 import { formatClock, formatPrice } from '../format';
 import type { Candle } from '../types';
-import { useFeed } from '../useMarketFeed';
+import { useFeed, useMarketSelector } from '../useMarketFeed';
 
 const AXIS_W = 76;
 const AXIS_H = 26;
@@ -138,12 +138,13 @@ function Legend({ candle }: { candle: Candle | undefined }) {
 }
 
 export function CandleChart() {
+  useRenderCount('CandleChart');
   const { market } = useFeed();
   const ref = useRef<HTMLCanvasElement>(null);
   const hoverRef = useRef<number | null>(null);
   const redraw = useRef<() => void>(() => {});
   const [hovered, setHovered] = useState<number | null>(null);
-  const candles = useStore(market, (s) => s.candles);
+  const candles = useMarketSelector((s) => s.candles);
 
   useEffect(() => {
     const canvas = ref.current;
