@@ -28,10 +28,12 @@ Open http://localhost:5173.
 | Command | Description |
 | --- | --- |
 | `npm run dev` | Start the dev server |
-| `npm test` | Run unit and component tests |
-| `npm run typecheck` | Type-check the project |
+| `npm test` | Run unit, component and proxy tests |
+| `npm run typecheck` | Type-check the frontend and the proxy |
 | `npm run build` | Type-check and build for production |
 | `npm run preview` | Serve the production build |
+| `npm run server` | Start the Node.js proxy on :8787 |
+| `npm run dev:proxy` | Start the frontend using the proxy |
 
 ### Configuration
 
@@ -40,6 +42,28 @@ Market data is read from the public Binance mirror `data-stream.binance.vision`,
 ```bash
 VITE_WS_HOST=wss://stream.binance.com:9443 VITE_API_HOST=https://api.binance.com npm run dev
 ```
+
+## Node.js proxy
+
+An optional proxy (`server/`) sits between the browser and Binance. It is a drop-in replacement: it speaks the same `/stream` WebSocket and `/api/v3/klines` REST shapes, so the frontend only needs two environment variables.
+
+```bash
+npm run server        # proxy on :8787
+npm run dev:proxy     # frontend pointed at the proxy
+```
+
+What it does:
+
+- **One upstream connection per symbol**, shared by every client. Connections open on the first subscriber and close 10 seconds after the last one leaves.
+- **Snapshot replay**: the latest message of every stream is cached, so a new client gets the order book, ticker and candle immediately instead of waiting for the next update.
+- **Shared REST cache**: kline history is cached for 5 seconds, concurrent requests are coalesced into one upstream call, and a stale value is served if Binance is unreachable.
+- **Backpressure**: clients whose send buffer exceeds 1 MB are skipped instead of piling up memory.
+- **Validation**: only known symbols and channels are accepted, at most 8 streams per connection, at most 1,000 clients.
+- **Health**: ping/pong heartbeat drops dead sockets, `GET /health` returns hub and cache counters.
+
+Configuration (environment variables): `PORT` (8787), `UPSTREAM_WS_HOST`, `UPSTREAM_API_HOST`, `KLINES_TTL_MS` (5000).
+
+Observed on a live run with the browser UI plus four extra clients on BTCUSDT: 5 clients shared 1 upstream connection (`upstreamsOpened: 1`), and 2 concurrent kline requests produced 1 upstream request (`misses: 1, coalesced: 1`). The dev UI requests history twice because of StrictMode. Without the proxy this would be 5 upstream connections and 2 REST calls.
 
 ## Architecture
 
@@ -64,11 +88,17 @@ src/
     marketFeed.ts    sockets, batching, history loading
     chartMath.ts     price range, scale and axis ticks
     components/      Ticker, CandleChart, OrderBook, TradeList, SymbolTabs
+server/
+  hub.ts             per-symbol upstream, fan-out, snapshot cache
+  ttlCache.ts        TTL cache with request coalescing and stale-on-error
+  streams.ts         request validation
+  app.ts             HTTP and WebSocket server
+  index.ts           entrypoint
 ```
 
 ## Tech stack
 
-React 19, TypeScript (strict), Vite, Vitest, Testing Library, GitLab CI.
+React 19, TypeScript (strict), Vite, Vitest, Testing Library, Node.js (`ws`), GitLab CI.
 
 ## CI
 
@@ -99,7 +129,7 @@ To reproduce: open the preview, then run `__perf.reset()` in the console, wait, 
 
 - [x] Render and long-task measurements with before/after numbers
 - [ ] Lighthouse report for the production build
-- [ ] Node.js proxy for the WebSocket with a shared cache between clients
+- [x] Node.js proxy with a shared upstream connection and cache between clients
 - [ ] Virtualized list and a Web Worker for heavy calculations
 - [ ] End-to-end tests with Playwright
 
