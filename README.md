@@ -34,6 +34,7 @@ Open http://localhost:5173.
 | `npm run preview` | Serve the production build |
 | `npm run server` | Start the Node.js proxy on :8787 |
 | `npm run dev:proxy` | Start the frontend using the proxy |
+| `npm run e2e` | Run Playwright end-to-end tests |
 
 ### Configuration
 
@@ -65,6 +66,25 @@ Configuration (environment variables): `PORT` (8787), `UPSTREAM_WS_HOST`, `UPSTR
 
 Observed on a live run with the browser UI plus four extra clients on BTCUSDT: 5 clients shared 1 upstream connection (`upstreamsOpened: 1`), and 2 concurrent kline requests produced 1 upstream request (`misses: 1, coalesced: 1`). The dev UI requests history twice because of StrictMode. Without the proxy this would be 5 upstream connections and 2 REST calls.
 
+## End-to-end tests
+
+Playwright tests run the whole stack locally: a fake Binance upstream (`e2e/fakeUpstream.ts`), the real Node.js proxy and the real frontend. Nothing touches the network, so the tests are deterministic and need no exchange access.
+
+```bash
+npx playwright install chromium   # once
+npm run e2e
+```
+
+Covered scenarios:
+
+- price, order book, trade tape and chart appear, with no page errors
+- switching BTC, ETH and SOL changes the data and the page title
+- the browser-to-proxy connection drops: the status shows reconnecting, then data resumes
+- the proxy-to-exchange connection drops: the proxy reports `reconnecting`, the UI freezes without errors, and the stream recovers once the upstream is back
+- two browser tabs share a single proxy room
+
+The fake upstream exposes `/__control/block` and `/__control/unblock` to simulate an exchange outage. In CI the suite runs in the official Playwright image and stores the HTML report and traces as artifacts.
+
 ## Architecture
 
 | Problem | Solution |
@@ -94,6 +114,9 @@ server/
   streams.ts         request validation
   app.ts             HTTP and WebSocket server
   index.ts           entrypoint
+e2e/
+  fakeUpstream.ts    fake Binance for deterministic tests
+  dashboard.spec.ts  Playwright scenarios
 ```
 
 ## Tech stack
@@ -102,7 +125,7 @@ React 19, TypeScript (strict), Vite, Vitest, Testing Library, Node.js (`ws`), Gi
 
 ## CI
 
-`.gitlab-ci.yml` runs type checking and tests, then builds the app and stores `dist/` as an artifact.
+`.gitlab-ci.yml` runs type checking and unit tests, then the Playwright suite (report and traces as artifacts), then builds the app and stores `dist/` as an artifact.
 
 ## Performance
 
@@ -131,7 +154,7 @@ To reproduce: open the preview, then run `__perf.reset()` in the console, wait, 
 - [ ] Lighthouse report for the production build
 - [x] Node.js proxy with a shared upstream connection and cache between clients
 - [ ] Virtualized list and a Web Worker for heavy calculations
-- [ ] End-to-end tests with Playwright
+- [x] End-to-end tests with Playwright
 
 ## Disclaimer
 
