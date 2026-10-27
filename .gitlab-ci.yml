@@ -1,0 +1,35 @@
+image: node:22
+
+stages:
+  - check
+  - build
+
+cache:
+  key:
+    files:
+      - package-lock.json
+  paths:
+    - node_modules/
+
+default:
+  before_script:
+    - npm ci
+
+typecheck:
+  stage: check
+  script:
+    - npm run typecheck
+
+test:
+  stage: check
+  script:
+    - npm test
+
+build:
+  stage: build
+  script:
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 week
