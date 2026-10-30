@@ -9,6 +9,10 @@
   --up: #2ebd85;
   --down: #f6465d;
   --accent: #6c8cff;
+  --ind-sma: #f0b90b;
+  --ind-ema: #6c8cff;
+  --ind-bb: #b983ff;
+  --ind-rsi: #4cc9f0;
   --radius: 14px;
   color-scheme: dark;
 }
@@ -81,6 +85,17 @@ button { font: inherit; color: inherit; }
 .legend__value--up { color: var(--up); }
 .legend__value--down { color: var(--down); }
 
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; background: transparent; color: var(--muted); font-size: 11px; cursor: pointer; }
+.chip:hover { color: var(--text); background: var(--panel-2); }
+.chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip[aria-pressed='true'] { color: var(--text); background: var(--panel-2); border-color: #3a465c; }
+.chip__dot { width: 6px; height: 6px; border-radius: 50%; }
+.chip__value { color: var(--text); font-variant-numeric: tabular-nums; }
+.rsi-wrap { position: relative; flex: 0 0 112px; min-height: 0; margin-top: 8px; border-top: 1px solid var(--border); }
+.rsi { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: crosshair; touch-action: none; }
+.rsi-label { position: absolute; top: 5px; left: 0; z-index: 1; color: var(--ind-rsi); font-size: 10px; pointer-events: none; }
+
 .book__side { display: flex; flex-direction: column; }
 .book__row { position: relative; display: flex; justify-content: space-between; align-items: center; height: 22px; padding: 0 4px; font-size: 12.5px; font-variant-numeric: tabular-nums; }
 .book__bar { position: absolute; right: 0; top: 1px; bottom: 1px; border-radius: 3px; opacity: 0.16; transition: width 0.15s; }
@@ -114,6 +129,7 @@ button { font: inherit; color: inherit; }
 @media (max-width: 1100px) {
   .grid { grid-template-columns: 1fr 1fr; height: auto; }
   .panel--chart { grid-column: 1 / -1; height: 420px; }
+  .panel--chart.panel--with-rsi { height: 540px; }
   .panel { min-height: 460px; }
 }
 @media (max-width: 640px) {
@@ -122,6 +138,7 @@ button { font: inherit; color: inherit; }
   .ticker__price { font-size: 32px; min-width: 0; }
   .grid { grid-template-columns: 1fr; }
   .panel--chart { height: 340px; }
+  .panel--chart.panel--with-rsi { height: 480px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

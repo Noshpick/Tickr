@@ -139,3 +139,49 @@ test('две вкладки делят одно соединение прокс�
     })
     .toEqual([2]);
 });
+
+test('индикаторы включаются, получают значения и рисуют RSI без ошибок', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto('/');
+  await expect(page.locator('.chart-loading')).toHaveCount(0);
+
+  for (const name of ['SMA 20', 'EMA 50', 'Bollinger']) {
+    const chip = page.getByRole('button', { name: new RegExp(name) });
+    await expect(chip).toHaveAttribute('aria-pressed', 'false');
+    await chip.click();
+    await expect(chip).toHaveAttribute('aria-pressed', 'true');
+    await expect(chip.locator('.chip__value')).not.toBeEmpty();
+  }
+
+  const rsi = page.getByRole('button', { name: /RSI 14/ });
+  await rsi.click();
+  await expect(rsi).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByLabel('RSI 14')).toBeVisible();
+  await expect(rsi.locator('.chip__value')).not.toBeEmpty();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (window as unknown as { __perf: { snapshot: () => { indicatorRuns: number } } }).__perf.snapshot().indicatorRuns,
+      ),
+    )
+    .toBeGreaterThan(0);
+
+  await rsi.click();
+  await expect(page.getByLabel('RSI 14')).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+test('индикаторы вычисляются в основном потоке, если Web Worker недоступен', async ({ page }) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.addInitScript(() => Object.defineProperty(window, 'Worker', { value: undefined }));
+  await page.goto('/');
+  await expect(page.locator('.chart-loading')).toHaveCount(0);
+
+  const rsi = page.getByRole('button', { name: /RSI 14/ });
+  await rsi.click();
+  await expect(page.getByLabel('RSI 14')).toBeVisible();
+  await expect(rsi.locator('.chip__value')).not.toBeEmpty();
+  expect(errors).toEqual([]);
+});

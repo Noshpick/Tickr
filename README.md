@@ -7,6 +7,8 @@ A real-time market dashboard: candlestick chart, order book and live trade tape 
 ## Features
 
 - Live 1-minute candlestick chart with price and time axes, last-price marker and a crosshair with OHLC legend
+- SMA 20, EMA 50 and Bollinger Bands overlays, a separate RSI 14 pane and indicator values for the selected candle
+- Indicator calculations in a Web Worker with automatic fallback to the main thread
 - Order book with depth bars, best bid/ask spread and skeleton loading states
 - Trade tape with highlighted new rows
 - 24h statistics: change, high, low, volume
@@ -82,6 +84,8 @@ Covered scenarios:
 - the browser-to-proxy connection drops: the status shows reconnecting, then data resumes
 - the proxy-to-exchange connection drops: the proxy reports `reconnecting`, the UI freezes without errors, and the stream recovers once the upstream is back
 - two browser tabs share a single proxy room
+- indicators can be enabled, receive values and render RSI without page errors
+- indicators fall back to main-thread calculations when Web Worker is unavailable
 
 The fake upstream exposes `/__control/block` and `/__control/unblock` to simulate an exchange outage. In CI the suite runs in the official Playwright image and stores the HTML report and traces as artifacts.
 
@@ -93,30 +97,37 @@ The fake upstream exposes `/__control/block` and `/__control/unblock` to simulat
 | Connection drops | `createReconnectingSocket` with exponential backoff, reset after a successful `open` |
 | Unnecessary re-renders | A tiny store built on `useSyncExternalStore` with selectors: a component updates only when its slice changes |
 | Chart updating several times per second | The canvas is redrawn imperatively from a store subscription, bypassing React |
+| Indicator calculations on a live stream | A Web Worker keeps only the latest state while busy, with a main-thread fallback when Worker is unavailable |
 | Candles only arrive for the current minute | History is loaded via REST and merged with live candles, live data wins on conflicts |
 | Malformed messages | `parseMessage` returns `null` instead of throwing, so the feed never crashes |
-| Testability | Pure reducer, parser and chart math are separated from the UI |
+| Testability | Pure reducer, parser, indicators and chart math are separated from the UI |
 
 ## Project structure
 
 ```
 src/
-  shared/            createStore, reconnectingSocket
+  shared/                 createStore, reconnectingSocket, performance measurements
+  features/indicators/
+    calc.ts               SMA, EMA, Bollinger Bands and RSI
+    engine.ts             calculation queue and candle subscription
+    indicators.worker.ts  Web Worker calculations
+    useIndicators.ts      worker creation and React fallback
   features/market/
-    parse.ts         stream message parser
-    reducer.ts       pure state transitions
-    marketFeed.ts    sockets, batching, history loading
-    chartMath.ts     price range, scale and axis ticks
-    components/      Ticker, CandleChart, OrderBook, TradeList, SymbolTabs
+    parse.ts              stream message parser
+    reducer.ts            pure state transitions
+    marketFeed.ts         sockets, batching, history loading
+    chartMath.ts          price range, scale and axis ticks
+    chartLayout.ts        shared candle, indicator and crosshair geometry
+    components/           Ticker, CandleChart, RsiPane, IndicatorChips, OrderBook, TradeList
 server/
-  hub.ts             per-symbol upstream, fan-out, snapshot cache
-  ttlCache.ts        TTL cache with request coalescing and stale-on-error
-  streams.ts         request validation
-  app.ts             HTTP and WebSocket server
-  index.ts           entrypoint
+  hub.ts                  per-symbol upstream, fan-out, snapshot cache
+  ttlCache.ts             TTL cache with request coalescing and stale-on-error
+  streams.ts              request validation
+  app.ts                  HTTP and WebSocket server
+  index.ts                entrypoint
 e2e/
-  fakeUpstream.ts    fake Binance for deterministic tests
-  dashboard.spec.ts  Playwright scenarios
+  fakeUpstream.ts         fake Binance for deterministic tests
+  dashboard.spec.ts       Playwright scenarios
 ```
 
 ## Tech stack
@@ -129,7 +140,7 @@ React 19, TypeScript (strict), Vite, Vitest, Testing Library, Node.js (`ws`), Gi
 
 ## Performance
 
-Measured on a production build (`npm run build && npm run preview`), BTCUSDT, 30 seconds after warm-up, in the same Chrome session. React commits are counted per component with a `useEffect` counter (`src/shared/perf.ts`), so StrictMode double-rendering does not skew the numbers.
+The measurements below predate the indicator integration and are kept as the original rendering baseline: production build (`npm run build && npm run preview`), BTCUSDT, 30 seconds after warm-up, in the same Chrome session. React commits are counted per component with a `useEffect` counter (`src/shared/perf.ts`), so StrictMode double-rendering does not skew the numbers.
 
 `?naive=1` switches off the two main optimizations to get a baseline: events are applied one by one instead of one batch per animation frame, and every component subscribes to the whole state instead of a selector.
 
@@ -146,14 +157,16 @@ Measured on a production build (`npm run build && npm run preview`), BTCUSDT, 30
 
 That is roughly 19x fewer React commits for the same stream. Long tasks were zero in both modes on this machine, so the difference shows up in wasted work rather than in visible jank; a slower device would be the place to look for it. This is a single 30-second run per mode, not a statistical benchmark.
 
-To reproduce: open the preview, then run `__perf.reset()` in the console, wait, and run `__perf.snapshot()`. Add `?naive=1` to the URL for the baseline.
+To reproduce: open the preview, then run `__perf.reset()` in the console, wait, and run `__perf.snapshot()`. Add `?naive=1` to the URL for the baseline. The snapshot also includes `indicatorRuns` and `indicatorMs` for calculation count and total calculation time. Add `?noWorker=1` to force indicator calculations onto the main thread.
 
 ## Roadmap
 
 - [x] Render and long-task measurements with before/after numbers
+- [ ] Repeat comparative measurements after the indicator integration
 - [ ] Lighthouse report for the production build
 - [x] Node.js proxy with a shared upstream connection and cache between clients
-- [ ] Virtualized list and a Web Worker for heavy calculations
+- [x] Web Worker for indicators with a main-thread fallback
+- [ ] Trade-list virtualization if the visible trade limit grows
 - [x] End-to-end tests with Playwright
 
 ## Disclaimer
