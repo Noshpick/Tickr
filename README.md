@@ -140,29 +140,32 @@ React 19, TypeScript (strict), Vite, Vitest, Testing Library, Node.js (`ws`), Gi
 
 ## Performance
 
-The measurements below predate the indicator integration and are kept as the original rendering baseline: production build (`npm run build && npm run preview`), BTCUSDT, 30 seconds after warm-up, in the same Chrome session. React commits are counted per component with a `useEffect` counter (`src/shared/perf.ts`), so StrictMode double-rendering does not skew the numbers.
+Measured on a production build (`npm run build && npm run preview`), BTCUSDT, with every indicator enabled, for 30 seconds after a 5-second warm-up, in two sequential runs in the same headless Chromium instance. React commits are counted per component with a `useEffect` counter (`src/shared/perf.ts`), so StrictMode double-rendering does not skew the numbers.
 
 `?naive=1` switches off the two main optimizations to get a baseline: events are applied one by one instead of one batch per animation frame, and every component subscribes to the whole state instead of a selector.
 
 | Metric (30 s) | Naive | Optimized |
 | --- | --- | --- |
-| WebSocket messages | 3,834 | 3,925 |
-| React commits, total | 19,170 | 1,007 |
-| Commits per message | 5.00 | 0.26 |
-| Ticker | 3,834 | 137 |
-| OrderBook | 3,834 | 292 |
-| TradeList | 3,834 | 196 |
-| CandleChart | 3,834 | 15 |
+| WebSocket messages | 3,293 | 2,425 |
+| React commits, total | 16,479 | 897 |
+| Commits per message | 5.00 | 0.37 |
+| Ticker | 3,293 | 94 |
+| OrderBook | 3,293 | 296 |
+| TradeList | 3,293 | 136 |
+| CandleChart | 3,307 | 30 |
+| Spread | 3,293 | 341 |
+| Indicator runs | 14 | 15 |
+| Indicator calculation time, ms | 2 | 2 |
 | Long tasks (>50 ms) | 0 | 0 |
 
-That is roughly 19x fewer React commits for the same stream. Long tasks were zero in both modes on this machine, so the difference shows up in wasted work rather than in visible jank; a slower device would be the place to look for it. This is a single 30-second run per mode, not a statistical benchmark.
+In these runs, the optimized mode produced roughly 18x fewer total React commits and 13.5x fewer commits per message. The live streams delivered different message counts. Long tasks were zero in both modes on this machine, so the difference shows up in wasted work rather than in visible jank; a slower device would be the place to look for it. This is a single 30-second run per mode, not a statistical benchmark.
 
-To reproduce: open the preview, then run `__perf.reset()` in the console, wait, and run `__perf.snapshot()`. Add `?naive=1` to the URL for the baseline. The snapshot also includes `indicatorRuns` and `indicatorMs` for calculation count and total calculation time. Add `?noWorker=1` to force indicator calculations onto the main thread.
+To reproduce: open the preview, enable every indicator, wait 5 seconds and run `__perf.reset()` in the console. After 30 seconds, run `__perf.snapshot()`. Add `?naive=1` to the URL for the baseline. The snapshot also includes `indicatorRuns` and `indicatorMs` for calculation count and total calculation time. Add `?noWorker=1` to force indicator calculations onto the main thread.
 
 ## Roadmap
 
 - [x] Render and long-task measurements with before/after numbers
-- [ ] Repeat comparative measurements after the indicator integration
+- [x] Comparative measurements with every indicator enabled
 - [ ] Lighthouse report for the production build
 - [x] Node.js proxy with a shared upstream connection and cache between clients
 - [x] Web Worker for indicators with a main-thread fallback
